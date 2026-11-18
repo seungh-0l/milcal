@@ -281,7 +281,7 @@ function persist(){
   if(RO)return;
   S.updatedAt=Date.now();
   try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}
-  dirty=true;pump();schedulePublish();
+  dirty=true;pump();schedulePublish();ghSchedule();
 }
 function pump(){
   if(!remote||writing||!dirty)return;
@@ -323,6 +323,61 @@ function schedulePublish(){
   },2500);
 }
 function setRO(v){RO=v;document.body.classList.toggle('ro',v);render()}
+
+/* ---------- GitHub 모드: github.io에서 열면 저장소의 data 브랜치 data.json을 읽고, 토큰이 있으면 저장 ---------- */
+var GH=/github\.io$/.test(location.hostname),GH_API='https://api.github.com/repos/seungh-0l/milcal/contents/data.json',GH_TK='milcal-gh-token';
+var ghTok=null,ghSha=null,ghTimer=null,ghBusy=false,ghMsg='';
+try{ghTok=localStorage.getItem(GH_TK)}catch(e){}
+function u8b64(str){var b=new TextEncoder().encode(str),bin='';for(var i=0;i<b.length;i+=8192)bin+=String.fromCharCode.apply(null,b.subarray(i,i+8192));return btoa(bin)}
+function b64u8(b){var bin=atob(b.replace(/\s/g,''));var u=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new TextDecoder().decode(u)}
+function ghHeaders(){var h={'Accept':'application/vnd.github+json'};if(ghTok)h.Authorization='Bearer '+ghTok;return h}
+function setGhMsg(t){ghMsg=t;var el=document.getElementById('gh-msg');if(el)el.textContent=t}
+function ghFetch(){
+  return fetch(GH_API+'?ref=data&t='+Date.now(),{headers:ghHeaders(),cache:'no-store'}).then(function(r){
+    if(r.status===404)return null;if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(function(j){
+    if(!j)return null;ghSha=j.sha;return normalize(JSON.parse(b64u8(j.content)))});
+}
+function ghPull(){
+  if(!GH||ghBusy)return;
+  ghFetch().then(function(rs){
+    if(!rs)return;
+    if((rs.updatedAt||0)>(S.updatedAt||0)){S=rs;if(!RO)try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}render()}
+    else if(!RO&&(S.updatedAt||0)>(rs.updatedAt||0))ghSchedule();
+  }).catch(function(){if(!RO)setGhMsg('불러오기 실패. 인터넷 연결을 확인하세요.')});
+}
+function ghSchedule(){if(!GH||RO||!ghTok)return;clearTimeout(ghTimer);ghTimer=setTimeout(ghPush,1200)}
+function ghPush(){
+  if(ghBusy){ghSchedule();return}
+  ghBusy=true;var at=S.updatedAt;
+  var body={message:'일정 업데이트',content:u8b64(JSON.stringify(S)),branch:'data'};if(ghSha)body.sha=ghSha;
+  fetch(GH_API,{method:'PUT',headers:ghHeaders(),body:JSON.stringify(body)}).then(function(r){
+    if(r.ok)return r.json().then(function(j){ghSha=j.content&&j.content.sha;setGhMsg('저장됨 · 링크를 연 사람에게 바로 보입니다')});
+    if(r.status===409||r.status===422)return ghFetch().then(function(rs){if(rs&&(rs.updatedAt||0)>(at||0)){S=rs;render()}else ghSchedule()});
+    if(r.status===401||r.status===403)setGhMsg('저장 실패: 토큰이 잘못됐거나 권한이 없습니다.');
+    else setGhMsg('저장 실패 (HTTP '+r.status+'). 잠시 후 다시 시도합니다.'),ghSchedule();
+  }).catch(function(){setGhMsg('저장 실패. 인터넷 연결을 확인하세요.');ghSchedule()}).then(function(){ghBusy=false});
+}
+function openToken(){
+  document.getElementById('sheet').innerHTML='<h3>편집 모드 켜기<button class="btn" data-close="1">닫기</button></h3>'+
+    '<div class="field"><label for="gh-token">GitHub 토큰</label><input type="password" id="gh-token" autocomplete="off" placeholder="github_pat_로 시작"></div>'+
+    '<div class="err" id="gh-err" hidden></div><div class="sheet-foot"><button class="btn" data-close="1">취소</button><button class="btn primary" id="gh-save">확인</button></div>';
+  document.getElementById('overlay').hidden=false;G={token:true};
+}
+function saveToken(){
+  var v=document.getElementById('gh-token').value.trim(),er=document.getElementById('gh-err');
+  if(!v){er.textContent='토큰을 붙여넣어 주세요.';er.hidden=false;return}
+  fetch('https://api.github.com/repos/seungh-0l/milcal',{headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+v},cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){
+    if(!j||!j.permissions||!j.permissions.push){er.textContent='이 토큰으로는 milcal 저장소에 쓸 수 없습니다. 권한을 확인해 주세요.';er.hidden=false;return}
+    ghTok=v;try{localStorage.setItem(GH_TK,v)}catch(e){}
+    try{history.replaceState(null,'',location.pathname)}catch(e){}
+    closeForm();setRO(false);ghPull();
+  }).catch(function(){er.textContent='확인하지 못했습니다. 인터넷 연결을 확인하세요.';er.hidden=false});
+}
+if(GH){
+  if(ghTok){RO=false;document.body.classList.remove('ro');try{var lr=localStorage.getItem(LS);if(lr){var ll=normalize(JSON.parse(lr));if((ll.updatedAt||0)>(S.updatedAt||0))S=ll}}catch(e){}}
+  else S=normalize(null);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)ghPull()});
+}
 (function initSync(){
   if(!window.claude||typeof window.claude.use!=='function')return;
   window.claude.use('user').then(function(user){
@@ -543,7 +598,8 @@ function renderManage(){
 
   h+=hc;
   h+='<section class="card" id="settings"><h2 class="sec">설정</h2>'+
-    '<div class="field"><div class="lab">공유 링크 (로그인 없이 보기)</div><div class="addhol" style="grid-template-columns:1fr auto;margin-top:0"><input type="text" id="share-url" readonly placeholder="복사 버튼을 누르면 만들어집니다" aria-label="공유 링크"><button class="btn primary" id="share-copy">복사</button></div><div class="sync" id="share-msg"></div></div>'+
+    (GH?'<div class="field"><div class="lab">공유 주소</div><div class="fixed">https://seungh-0l.github.io/milcal/</div><div class="sync" id="gh-msg">'+esc(ghMsg)+'</div><button class="btn danger" id="gh-off" style="margin-top:8px">이 기기에서 편집 모드 끄기</button></div>':'')+
+    (GH?'':'<div class="field"><div class="lab">공유 링크 (로그인 없이 보기)</div><div class="addhol" style="grid-template-columns:1fr auto;margin-top:0"><input type="text" id="share-url" readonly placeholder="복사 버튼을 누르면 만들어집니다" aria-label="공유 링크"><button class="btn primary" id="share-copy">복사</button></div><div class="sync" id="share-msg"></div></div>')+
     '<div class="row2"><div class="field"><label for="set-enlist">입대일</label><input type="date" id="set-enlist" value="'+S.settings.enlist+'"></div>'+
     '<div class="field"><label for="set-discharge">전역일</label><input type="date" id="set-discharge" value="'+S.settings.discharge+'"></div></div>'+
     '<div class="lab" style="font-size:12px;color:var(--muted);font-weight:600">직접 추가한 공휴일 (임시공휴일 등)</div>';
@@ -800,6 +856,8 @@ document.addEventListener('click',function(ev){
     renderForm();return}
   if(ds.day&&F){F.days[ds.day]=ds.val;F.gr=F.gr||{};if(ds.val==='연가')delete F.gr[ds.day];else F.gr[ds.day]=pickGrant('leave:'+ds.val,ds.day);renderForm();return}
   if(ds.delhol){S.customHolidays.splice(+ds.delhol,1);persist();render();return}
+  if(el.id==='gh-save'){saveToken();return}
+  if(el.id==='gh-off'){ghTok=null;try{localStorage.removeItem(GH_TK)}catch(e){}setRO(true);return}
   if(el.id==='share-copy'){var msg=document.getElementById('share-msg');
     encodeShare().then(function(url){var inp=document.getElementById('share-url');if(inp){inp.value=url;inp.select()}
       return navigator.clipboard.writeText(url).then(function(){msg.textContent='복사됨. 일정이 바뀌면 다시 복사해서 보내주세요.'},function(){msg.textContent='자동 복사가 안 됩니다. 위 칸을 길게 눌러 복사해주세요.'})}).catch(function(){msg.textContent='링크를 만들지 못했습니다.'});return}
@@ -827,6 +885,8 @@ document.addEventListener('change',function(ev){
 document.addEventListener('keydown',function(ev){if(ev.key==='Escape'&&(F||G))closeForm()});
 
 render();
+if(GH){ghPull();if(/^#edit$/.test(location.hash)&&!ghTok)openToken()}
+window.addEventListener('hashchange',function(){if(GH&&location.hash==='#edit'&&!ghTok)openToken()});
 if(shareLoad)shareLoad.then(function(txt){S=normalize(JSON.parse(txt));render()}).catch(function(){});
 if(restoreY)setTimeout(function(){window.scrollTo(0,restoreY)},50);
 })();
