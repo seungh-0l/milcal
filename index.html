@@ -421,9 +421,10 @@ function formUse(id,skipDay){if(!F)return 0;if(F.type==='leave'){var n=0;for(var
 function pickGrant(pool,skipDay){var gs=grantsOf(pool);
   for(var i=0;i<gs.length;i++)if(gs[i].days-gUse(gs[i].id,F.id).u-formUse(gs[i].id,skipDay)>0)return gs[i].id;
   return gs.length?gs[0].id:''}
-function poolSum(pool){var gs=grantsOf(pool),held=0,plan=0,tot=0;
-  gs.forEach(function(g){var r=g.days-gUse(g.id).u;tot+=g.days;if(g.plan)plan+=r;else held+=r});
-  return {held:held,plan:plan,total:tot}}
+/* 보유 = 보유 항목 중 확정 사용 안 한 일수(괄호: 그중 희망), 사용 = 확정만, 예정 = 예정 항목 일수(괄호: 그중 희망) */
+function poolSum(pool){var gs=grantsOf(pool),held=0,hh=0,plan=0,ph=0,tot=0;
+  gs.forEach(function(g){var u=gUse(g.id);tot+=g.days;if(g.plan){plan+=g.days;ph+=u.u}else{held+=g.days-u.c;hh+=u.h}});
+  return {held:held,hh:hh,plan:plan,ph:ph,total:tot}}
 function grantCheck(pool,id){
   var unit=pool.indexOf('reward')===0?'회':'일',nm=POOL_NAME[pool],cnt={},list=[];
   if(F.type==='leave'){for(var d in F.days)if('leave:'+F.days[d]===pool){var g=F.gr&&F.gr[d];if(!g||!grantById(g))return 'X';cnt[g]=(cnt[g]||0)+1}}
@@ -572,19 +573,21 @@ function grantList(pools){
       '<div class="gr"><span class="gu num">'+fmt(u.c,u.h)+' / '+g.days+unit+'</span><button class="btn" data-gedit="'+g.id+'">수정</button></div></div>'});
   return h+'</div>'}
 function addBtns(sec){return '<div class="gbtns"><button class="btn" data-gadd="'+sec+'" data-gplan="0">보유 추가하기</button><button class="btn" data-gadd="'+sec+'" data-gplan="1">예정 추가하기</button></div>'}
-function sumRow(label,ps,used){return '<tr><td>'+label+'</td><td class="num">'+ps.held+'</td><td class="num">'+used+'</td><td class="num">'+ps.plan+'</td><td class="num">'+ps.total+'</td></tr>'}
+function chOf(list){var h=list.filter(function(e){return e.status==='희망'}).length;return [list.length-h,h]}
+function leaveCH(kind){var c=0,h=0;S.events.forEach(function(e){if(e.type==='leave')for(var d in e.days)if(e.days[d]===kind){if(e.status==='희망')h++;else c++}});return [c,h]}
+function sumRow(label,ps,ch,bold){return '<tr'+(bold?' style="font-weight:700"':'')+'><td>'+label+'</td><td class="num">'+fmt(ps.held,ps.hh)+'</td><td class="num">'+ch[0]+'</td><td class="num">'+fmt(ps.plan,ps.ph)+'</td><td class="num">'+ps.total+'</td></tr>'}
 function renderManage(){
   var h='<section class="card"><h2 class="sec">휴가</h2><table><thead><tr><th>구분</th><th>보유</th><th>사용</th><th>예정</th><th>총</th></tr></thead><tbody>';
-  var tH=0,tP=0,tT=0;
+  var T0={held:0,hh:0,plan:0,ph:0,total:0},C0=[0,0];
   KINDS.forEach(function(k){
-    var ps=k==='연가'?{held:24-usedLeave('연가'),plan:0,total:24}:poolSum('leave:'+k);
-    tH+=ps.held;tP+=ps.plan;tT+=ps.total;h+=sumRow(k,ps,leaveFmt(k));
+    var lc=leaveCH('연가'),ps=k==='연가'?{held:24-lc[0],hh:lc[1],plan:0,ph:0,total:24}:poolSum('leave:'+k),ch=leaveCH(k);
+    for(var f in T0)T0[f]+=ps[f];C0[0]+=ch[0];C0[1]+=ch[1];h+=sumRow(k,ps,ch);
   });
-  h+='<tr style="font-weight:700"><td>총 휴가 일수</td><td class="num">'+tH+'</td><td class="num">'+leaveFmt()+'</td><td class="num">'+tP+'</td><td class="num">'+tT+'</td></tr></tbody></table>'+
+  h+=sumRow('총 휴가 일수',T0,C0,true)+'</tbody></table>'+
     grantList(['leave:위로','leave:포상','leave:청원'])+addBtns('leave')+'</section>';
 
   var hc='<section class="card"><h2 class="sec">전투휴무</h2><table><thead><tr><th>구분</th><th>보유</th><th>사용</th><th>예정</th><th>총</th></tr></thead><tbody>'+
-    sumRow('전투휴무',poolSum('combat'),sp(evs('combat')))+'</tbody></table>'+grantList(['combat'])+addBtns('combat')+'</section>';
+    sumRow('전투휴무',poolSum('combat'),chOf(evs('combat')))+'</tbody></table>'+grantList(['combat'])+addBtns('combat')+'</section>';
 
   var m=ui.month,q=quarter(m+'-01');
   h+='<section class="card"><h2 class="sec">출타 현황</h2>'+
@@ -592,8 +595,8 @@ function renderManage(){
     '<div class="meter"><span>정기 외출 · '+q.slice(0,4)+'년 '+q.slice(6)+'분기</span><b class="num">'+sp(evs('out',function(e){return e.kind==='정기'&&quarter(e.date)===q}))+' / 2</b></div>'+
     '<div class="meter"><span>정기 외박 · '+q.slice(0,4)+'년 '+q.slice(6)+'분기</span><b class="num">'+sp(evs('stay',function(e){return e.kind==='정기'&&quarter(e.date)===q}))+' / 1</b></div>'+
     '<table style="margin-top:6px"><thead><tr><th>구분</th><th>보유</th><th>사용</th><th>예정</th><th>총</th></tr></thead><tbody>'+
-    sumRow('포상 외출',poolSum('reward:out'),sp(evs('out',function(e){return e.kind==='포상'})))+
-    sumRow('포상 외박',poolSum('reward:stay'),sp(evs('stay',function(e){return e.kind==='포상'})))+
+    sumRow('포상 외출',poolSum('reward:out'),chOf(evs('out',function(e){return e.kind==='포상'})))+
+    sumRow('포상 외박',poolSum('reward:stay'),chOf(evs('stay',function(e){return e.kind==='포상'})))+
     '</tbody></table>'+grantList(['reward:out','reward:stay'])+addBtns('reward')+'</section>';
 
   h+=hc;
