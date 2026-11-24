@@ -780,7 +780,7 @@ function renderForm(){
     h+='<div class="field"><div class="lab">종류</div>'+seg('type',types.map(function(x){return {v:x,l:x==='out'?'외출':TYPE_NAME[x]}}),t)+'</div>';
   }
   if(t==='leave'){
-    h+='<div class="row2"><div class="field"><div class="lab">시작일시</div><div class="fixed num">'+md(F.start)+' 08:30</div></div>'+
+    h+='<div class="row2"><div class="field"><label for="f-start">시작일시 (08:30 자동)</label><input type="date" id="f-start" data-f="start" min="2026-07-01" max="'+S.settings.discharge+'" value="'+F.start+'"></div>'+
       '<div class="field"><label for="f-end">종료일시 (21:00 자동)</label><input type="date" id="f-end" data-f="end" min="'+F.start+'" max="'+S.settings.discharge+'" value="'+F.end+'"></div></div>'+
       '<div class="field"><div class="lab">휴가 세부 내역 입력하기</div><div class="rows">';
     for(var k in F.days)h+='<div class="drow"><span class="dt num'+((dow(k)===0||holName(k))?' sun':dow(k)===6?' sat':'')+'">'+mdw(k)+'</span>'+
@@ -793,7 +793,7 @@ function renderForm(){
   }else if(t==='combat'){
     h+='<div class="field"><div class="lab">날짜</div><div class="fixed num">'+mdw(F.date)+' · 하루 종일</div></div>'+grantField('combat')+statusField();
   }else if(t==='training'){
-    h+='<div class="row2"><div class="field"><div class="lab">시작일</div><div class="fixed num">'+md(F.start)+'</div></div>'+
+    h+='<div class="row2"><div class="field"><label for="f-start">시작일</label><input type="date" id="f-start" data-f="start" min="2026-07-01" max="'+S.settings.discharge+'" value="'+F.start+'"></div>'+
       '<div class="field"><label for="f-end">종료일</label><input type="date" id="f-end" data-f="end" min="'+F.start+'" max="'+S.settings.discharge+'" value="'+F.end+'"></div></div>'+
       '<div class="field"><div class="lab">훈련 세부 내용 (철야라고 적으면 달력에 따로 표시)</div><div class="rows">';
     range(F.start,F.end<F.start?F.start:F.end).forEach(function(k,i){h+='<div class="drow"><span class="dt num">'+mdw(k)+'</span><input type="text" id="f-det-'+i+'" data-det="'+k+'" value="'+esc(F.details[k]||'')+'" placeholder="내용" aria-label="'+md(k)+' 세부 내용"></div>'});
@@ -804,7 +804,7 @@ function renderForm(){
       '<div class="field"><label for="f-rx">처방 일수</label><input type="number" inputmode="numeric" min="0" id="f-rx" data-f="rxDays" value="'+(F.rxDays||'')+'" placeholder="예: 90"></div></div>'+
       '<p class="note" id="rx-note" style="margin:-4px 0 12px"></p>';
   }else if(t==='etc'){
-    h+='<div class="row2"><div class="field"><div class="lab">시작일</div><div class="fixed num">'+md(F.start)+'</div></div>'+
+    h+='<div class="row2"><div class="field"><label for="f-start">시작일</label><input type="date" id="f-start" data-f="start" min="2026-07-01" max="'+S.settings.discharge+'" value="'+F.start+'"></div>'+
       '<div class="field"><label for="f-end">종료일</label><input type="date" id="f-end" data-f="end" min="'+F.start+'" max="'+S.settings.discharge+'" value="'+F.end+'"></div></div>'+
       '<div class="field"><div class="lab">색깔</div><div class="seg rb">'+RAINBOW.map(function(r){return '<button type="button" data-set="color" data-val="'+r[0]+'" aria-pressed="'+(F.color===r[0])+'" aria-label="'+r[1]+'" style="--c:'+r[2]+'"><i></i>'+r[1]+'</button>'}).join('')+'</div></div>'+
       '<div class="field"><label for="f-title">제목</label><input type="text" id="f-title" data-f="title" value="'+esc(F.title||'')+'"></div>'+
@@ -888,11 +888,12 @@ document.addEventListener('input',function(ev){
   if(!F)return;
   if(ds.det){F.details[ds.det]=el.value;return}
   if(ds.note){F.notes=F.notes||{};F.notes[ds.note]=el.value;return}
-  if(ds.f&&ds.f!=='end'){F[ds.f]=el.value;if(ds.f==='rxDays')rxNote();return}
+  if(ds.f&&ds.f!=='end'&&ds.f!=='start'){F[ds.f]=el.value;if(ds.f==='rxDays')rxNote();return}
 });
 document.addEventListener('change',function(ev){
   var el=ev.target,ds=el.dataset;
   if(el.id==='month-select'){ui.month=el.value;ui.sel=(ym(T)===ui.month)?T:ui.month+'-01';ui.delId=null;renderCalendar();return}
+  if(F&&ds.f==='start'){if(el.value){F.start=el.value;if(F.end<F.start)F.end=F.start;F.anchor=F.start;if(F.type==='leave')syncDays()}renderForm();return}
   if(F&&ds.f==='end'){if(el.value){F.end=el.value;if(F.type==='leave'&&F.end>=F.start)syncDays()}renderForm();return}
   if(ds.grday&&F){F.gr[ds.grday]=el.value;renderForm();return}
   if(ds.grone&&F){F.gr=el.value;renderForm();return}
