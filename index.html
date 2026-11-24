@@ -359,15 +359,29 @@ function ghPush(){
 }
 function openToken(){
   document.getElementById('sheet').innerHTML='<h3>편집 모드 켜기<button class="btn" data-close="1">닫기</button></h3>'+
-    '<div class="field"><label for="gh-token">GitHub 토큰</label><input type="password" id="gh-token" autocomplete="off" placeholder="github_pat_로 시작"></div>'+
+    '<div class="field"><label for="gh-token">비밀번호</label><input type="password" id="gh-token" autocomplete="off"></div>'+
     '<div class="err" id="gh-err" hidden></div><div class="sheet-foot"><button class="btn" data-close="1">취소</button><button class="btn primary" id="gh-save">확인</button></div>';
   document.getElementById('overlay').hidden=false;G={token:true};
 }
+/* 저장용 토큰을 비밀번호로 암호화해 둔 것 (PBKDF2 + AES-GCM). 토큰을 직접 넣어도 됩니다. */
+var LOCK={"s":"4spwiZYQ4FK+F8BD0kMQzQ==","i":"c9EbSnGfpSaQlI+J","c":"rfZiTL8r9zzvhsZApSv+AvaJS6UYYWg5/guw15LnPFlCa4vkg30Touq5DudViALosClx+4i+ah8jm7RFWt5IIayGw3I5f5ElXm6ZMEtFjHAJ/ek3AGDJxkyyLnz/KXVuNcFuvTf3C1f9r/UtOg==","n":600000};
+function unlock(pw){
+  function b(x){var r=atob(x),u=new Uint8Array(r.length);for(var i=0;i<r.length;i++)u[i]=r.charCodeAt(i);return u}
+  var sub=crypto.subtle;
+  return sub.importKey('raw',new TextEncoder().encode(pw),'PBKDF2',false,['deriveKey']).then(function(k){
+    return sub.deriveKey({name:'PBKDF2',salt:b(LOCK.s),iterations:LOCK.n,hash:'SHA-256'},k,{name:'AES-GCM',length:256},false,['decrypt'])}).then(function(key){
+    return sub.decrypt({name:'AES-GCM',iv:b(LOCK.i)},key,b(LOCK.c))}).then(function(p){return new TextDecoder().decode(p)});
+}
 function saveToken(){
-  var v=document.getElementById('gh-token').value.trim(),er=document.getElementById('gh-err');
-  if(!v){er.textContent='토큰을 붙여넣어 주세요.';er.hidden=false;return}
-  fetch('https://api.github.com/repos/seungh-0l/milcal',{headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+v},cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){
-    if(!j||!j.permissions||!j.permissions.push){er.textContent='이 토큰으로는 milcal 저장소에 쓸 수 없습니다. 권한을 확인해 주세요.';er.hidden=false;return}
+  var raw=document.getElementById('gh-token').value.trim(),er=document.getElementById('gh-err'),btn=document.getElementById('gh-save');
+  if(!raw){er.textContent='비밀번호를 입력해 주세요.';er.hidden=false;return}
+  btn.disabled=true;btn.textContent='확인 중';
+  var p=/^(github_pat_|ghp_)/.test(raw)?Promise.resolve(raw):unlock(raw);
+  p.then(function(v){checkToken(v,er)},function(){er.textContent='비밀번호가 틀렸습니다.';er.hidden=false}).then(function(){btn.disabled=false;btn.textContent='확인'});
+}
+function checkToken(v,er){
+  return fetch('https://api.github.com/repos/seungh-0l/milcal',{headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+v},cache:'no-store'}).then(function(r){return r.ok?r.json():null}).then(function(j){
+    if(!j||!j.permissions||!j.permissions.push){er.textContent='저장 권한이 없습니다. 토큰이 만료됐거나 삭제됐을 수 있습니다.';er.hidden=false;return}
     ghTok=v;try{localStorage.setItem(GH_TK,v)}catch(e){}
     try{history.replaceState(null,'',location.pathname)}catch(e){}
     closeForm();setRO(false);ghPull();
@@ -885,7 +899,7 @@ document.addEventListener('change',function(ev){
   if(el.id==='set-enlist'&&el.value){S.settings.enlist=el.value;persist();render();return}
   if(el.id==='set-discharge'&&el.value){S.settings.discharge=el.value;persist();render();return}
 });
-document.addEventListener('keydown',function(ev){if(ev.key==='Escape'&&(F||G))closeForm()});
+document.addEventListener('keydown',function(ev){if(ev.key==='Escape'&&(F||G))closeForm();if(ev.key==='Enter'&&ev.target.id==='gh-token')saveToken()});
 
 render();
 if(GH){ghPull();if(/^#edit$/.test(location.hash)&&!ghTok)openToken()}
