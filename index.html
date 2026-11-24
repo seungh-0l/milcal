@@ -789,9 +789,9 @@ function renderForm(){
       '<input type="text" class="lnote" id="f-note-'+k+'" data-note="'+k+'" value="'+esc((F.notes||{})[k]||'')+'" placeholder="메모 (예: 체육대회 포상)" aria-label="'+md(k)+' 메모"></div>';
     h+='</div></div>'+statusField();
   }else if(t==='wout'){
-    h+='<div class="field"><div class="lab">시간</div><div class="fixed num">'+md(F.date)+' 17:30 ~ 21:00</div></div>'+statusField();
+    h+='<div class="field"><label for="f-date">날짜</label><input type="date" id="f-date" data-f="date" min="2026-07-01" max="'+S.settings.discharge+'" value="'+F.date+'"></div>'+'<div class="field"><div class="lab">시간</div><div class="fixed num">17:30 ~ 21:00</div></div>'+statusField();
   }else if(t==='combat'){
-    h+='<div class="field"><div class="lab">날짜</div><div class="fixed num">'+mdw(F.date)+' · 하루 종일</div></div>'+grantField('combat')+statusField();
+    h+='<div class="field"><label for="f-date">날짜</label><input type="date" id="f-date" data-f="date" min="2026-07-01" max="'+S.settings.discharge+'" value="'+F.date+'"></div>'+'<div class="field"><div class="lab">시간</div><div class="fixed num">하루 종일</div></div>'+grantField('combat')+statusField();
   }else if(t==='training'){
     h+='<div class="row2"><div class="field"><label for="f-start">시작일</label><input type="date" id="f-start" data-f="start" min="2026-07-01" max="'+S.settings.discharge+'" value="'+F.start+'"></div>'+
       '<div class="field"><label for="f-end">종료일</label><input type="date" id="f-end" data-f="end" min="'+F.start+'" max="'+S.settings.discharge+'" value="'+F.end+'"></div></div>'+
@@ -799,7 +799,7 @@ function renderForm(){
     range(F.start,F.end<F.start?F.start:F.end).forEach(function(k,i){h+='<div class="drow"><span class="dt num">'+mdw(k)+'</span><input type="text" id="f-det-'+i+'" data-det="'+k+'" value="'+esc(F.details[k]||'')+'" placeholder="내용" aria-label="'+md(k)+' 세부 내용"></div>'});
     h+='</div></div>';
   }else if(t==='hospital'){
-    h+='<div class="field"><div class="lab">날짜</div><div class="fixed num">'+mdw(F.date)+'</div></div>'+
+    h+='<div class="field"><label for="f-date">날짜</label><input type="date" id="f-date" data-f="date" min="2026-07-01" max="'+S.settings.discharge+'" value="'+F.date+'"></div>'+
       '<div class="row2"><div class="field"><label for="f-dept">진료과</label><input type="text" id="f-dept" data-f="dept" value="'+esc(F.dept||'')+'" placeholder="예: 정형외과"></div>'+
       '<div class="field"><label for="f-rx">처방 일수</label><input type="number" inputmode="numeric" min="0" id="f-rx" data-f="rxDays" value="'+(F.rxDays||'')+'" placeholder="예: 90"></div></div>'+
       '<p class="note" id="rx-note" style="margin:-4px 0 12px"></p>';
@@ -810,13 +810,13 @@ function renderForm(){
       '<div class="field"><label for="f-title">제목</label><input type="text" id="f-title" data-f="title" value="'+esc(F.title||'')+'"></div>'+
       '<div class="field"><label for="f-memo">메모</label><textarea id="f-memo" data-f="memo">'+esc(F.memo||'')+'</textarea></div>';
   }else if(t==='out'){
-    h+='<div class="field"><div class="lab">시간</div><div class="fixed num">'+md(F.date)+' 08:30 ~ 21:00</div></div>'+
+    h+='<div class="field"><label for="f-date">날짜</label><input type="date" id="f-date" data-f="date" min="2026-07-01" max="'+S.settings.discharge+'" value="'+F.date+'"></div>'+'<div class="field"><div class="lab">시간</div><div class="fixed num">08:30 ~ 21:00</div></div>'+
       '<div class="field"><div class="lab">외출 구분</div>'+seg('kind',OUTK,F.kind)+'</div>'+(F.kind==='포상'?grantField('reward:out'):'')+statusField();
   }else if(t==='stay'){
-    h+='<div class="field"><div class="lab">시간</div><div class="fixed num">'+md(F.date)+' 08:30 ~ 익일('+md(addDays(F.date,1))+') 21:00</div></div>'+
+    h+='<div class="field"><label for="f-date">날짜</label><input type="date" id="f-date" data-f="date" min="2026-07-01" max="'+S.settings.discharge+'" value="'+F.date+'"></div>'+'<div class="field"><div class="lab">시간</div><div class="fixed num">08:30 ~ 익일('+md(addDays(F.date,1))+') 21:00</div></div>'+
       '<div class="field"><div class="lab">외박 구분</div>'+seg('kind',OUTK,F.kind)+'</div>'+(F.kind==='포상'?grantField('reward:stay'):'')+statusField();
   }else if(t==='duty'){
-    h+='<div class="field"><div class="lab">날짜</div><div class="fixed num">'+mdw(F.date)+'</div></div>'+
+    h+='<div class="field"><label for="f-date">날짜</label><input type="date" id="f-date" data-f="date" min="2026-07-01" max="'+S.settings.discharge+'" value="'+F.date+'"></div>'+
       '<div class="field"><label for="f-memo">근무 내용</label><input type="text" id="f-memo" data-f="memo" value="'+esc(F.memo||'')+'" placeholder="예: 당직, 불침번"></div>';
   }
   var err=validate();
@@ -888,11 +888,12 @@ document.addEventListener('input',function(ev){
   if(!F)return;
   if(ds.det){F.details[ds.det]=el.value;return}
   if(ds.note){F.notes=F.notes||{};F.notes[ds.note]=el.value;return}
-  if(ds.f&&ds.f!=='end'&&ds.f!=='start'){F[ds.f]=el.value;if(ds.f==='rxDays')rxNote();return}
+  if(ds.f&&ds.f!=='end'&&ds.f!=='start'&&ds.f!=='date'){F[ds.f]=el.value;if(ds.f==='rxDays')rxNote();return}
 });
 document.addEventListener('change',function(ev){
   var el=ev.target,ds=el.dataset;
   if(el.id==='month-select'){ui.month=el.value;ui.sel=(ym(T)===ui.month)?T:ui.month+'-01';ui.delId=null;renderCalendar();return}
+  if(F&&ds.f==='date'){if(el.value){F.date=el.value;F.anchor=el.value}renderForm();rxNote();return}
   if(F&&ds.f==='start'){if(el.value){F.start=el.value;if(F.end<F.start)F.end=F.start;F.anchor=F.start;if(F.type==='leave')syncDays()}renderForm();return}
   if(F&&ds.f==='end'){if(el.value){F.end=el.value;if(F.type==='leave'&&F.end>=F.start)syncDays()}renderForm();return}
   if(ds.grday&&F){F.gr[ds.grday]=el.value;renderForm();return}
